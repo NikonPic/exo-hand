@@ -8,8 +8,6 @@
   const int muxS1 = 25;
   const int muxS2 = 33;
   const int muxS3 = 32;
-  // Pin für Kraftsensor Zeigefinger
-  const int forcePin = 39;
 
 // Skalierung des gemessenen Signals auf die Spannung
 float floatMap(float x, float in_min, float in_max, float out_min, float out_max) {
@@ -47,11 +45,8 @@ int readMux(int channel){
   // Wert am Signal-Pin lesen
   int val = analogRead(muxSIG);
 
-  // Wert in Winkel[°] umrechnen (Aus altem Code)
-  int valGrad = 0.0533 * val - 9.27;
-
-  // Wert in Winkel [°] umrechnen (Alternative)
-  float valGrad2 = map(val, 0, 4095, 0, 300);
+  // Wert in Winkel [°] umrechnen (Annahme: Winkelbereich Poti 310°)
+  float valGrad = map(val, 0, 4095, 0, 360);
   
   // Wert zurück geben
   return valGrad;
@@ -74,19 +69,26 @@ void setup() {
 void loop() {
   
 // Winkelwerte auslesen und auf Seriellen Monitor schreiben
-for(int i=0;i<16;i=i+1){
-Serial.print("Potentiometer Zeigefinger\n");
+for(int i=0;i<160;i=i+1){
+//Serial.print("Potentiometer Zeigefinger\n");
 Serial.println(readMux(0)); // Grundgelenk
 Serial.println(readMux(1)); // Mittelgelenk
 Serial.println(readMux(2)); // Endgelenk
-Serial.println(readMux(4)); // Andere Drehachse
+// Serial.println(readMux(4)); // Andere Drehachse
 
-// Kraftwert Zeigefinger auslesen
-int forceValue = analogRead(forcePin);
-Serial.print("Kraftsensor Zeigefinger \n");
-  Serial.print(forceValue);
-  Serial.print("\n \n");
-delay(5000);
+// Kraftwert Zeigefinger auslesen, aktueller Widerstand: 10kOhm
+// Serial.print("Kraftsensor Zeigefinger \n");
+// Serial.println(analogRead(39));
+// Serial.print("\n");
+
+//Serial.print("Potentiometer Ringfinger\n");
+//Serial.println(readMux(6)); // Grundgelenk
+//Serial.println(readMux(7)); // Mittelgelenk
+//Serial.println(readMux(3)); // Endgelenk
+//Serial.println(readMux()); // Andere Drehachse
+//Serial.print("\n\n");
+
+delay(100);
 }
 while(1);
 }
