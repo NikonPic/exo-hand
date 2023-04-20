@@ -69,26 +69,42 @@ void setup() {
 void loop() {
   
 // Winkelwerte auslesen und auf Seriellen Monitor schreiben
-for(int i=0;i<160;i=i+1){
-//Serial.print("Potentiometer Zeigefinger\n");
+for(int i=0;i<50;i=i+1){
+// Serial.print("Poti Zeigefinger\n");
 Serial.println(readMux(0)); // Grundgelenk
 Serial.println(readMux(1)); // Mittelgelenk
 Serial.println(readMux(2)); // Endgelenk
-// Serial.println(readMux(4)); // Andere Drehachse
+// Serial.println(readMux()); // Andere Drehachse
+
+// Serial.print("Poti Mittelfinger\n");
+Serial.println(readMux(4)); // Grundgelenk
+Serial.println(readMux(5)); // Mittelgelenk
+Serial.println(readMux(6)); // Endgelenk
+//Serial.println(readMux()); // Andere Drehachse
+//Serial.print("\n\n");
+
+// Serial.print("Poti Ringfinger\n");
+Serial.println(readMux(8)); // Grundgelenk
+Serial.println(readMux(9)); // Mittelgelenk
+Serial.println(readMux(10)); // Endgelenk
+//Serial.println(readMux()); // Andere Drehachse
+//Serial.print("\n\n");
+
+// Serial.print("Poti kleiner Finger\n");
+Serial.println(readMux(12)); // Grundgelenk
+Serial.println(readMux(13)); // Mittelgelenk
+Serial.println(readMux(14)); // Endgelenk
+//Serial.println(readMux()); // Andere Drehachse
+//Serial.print("\n\n");
 
 // Kraftwert Zeigefinger auslesen, aktueller Widerstand: 10kOhm
 // Serial.print("Kraftsensor Zeigefinger \n");
 // Serial.println(analogRead(39));
 // Serial.print("\n");
 
-//Serial.print("Potentiometer Ringfinger\n");
-//Serial.println(readMux(6)); // Grundgelenk
-//Serial.println(readMux(7)); // Mittelgelenk
-//Serial.println(readMux(3)); // Endgelenk
-//Serial.println(readMux()); // Andere Drehachse
-//Serial.print("\n\n");
 
-delay(100);
+
+delay(100); // zum plotten 100 nehmen
 }
 while(1);
 }
