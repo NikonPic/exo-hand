@@ -2,12 +2,23 @@
 
 // Variablen
   // Input-Pin Multiplexer 
-  const int muxSIG = 36;
+  #define muxSIG 36
   // control-Pins Multiplexer
-  const int muxS0 = 26;
-  const int muxS1 = 25;
-  const int muxS2 = 33;
-  const int muxS3 = 32;
+  #define muxS0 12
+  #define muxS1 14
+  #define muxS2 27
+  #define muxS3 26
+  // inout pins Kraftsensoren
+  #define force1 25
+  #define force2 33
+  #define force3 32
+  #define force4 35
+
+  // Test einlesedauer bestimmen
+  int potentiometerValue = 0;
+  unsigned long startTime = 0;
+  unsigned long endTime = 0;
+  unsigned long elapsedTime = 0;
 
 // Skalierung des gemessenen Signals auf die Spannung
 float floatMap(float x, float in_min, float in_max, float out_min, float out_max) {
@@ -62,49 +73,86 @@ void setup() {
   pinMode(muxS1, OUTPUT);
   pinMode(muxS2, OUTPUT);
   pinMode(muxS3, OUTPUT);
+  // input pins Kraftsensoren
+  pinMode(force1, INPUT);
+  pinMode(force2, INPUT);
+  pinMode(force3, INPUT);
+  pinMode(force4, INPUT);
 
   Serial.begin(9600);
 }
 
 void loop() {
   
-// Winkelwerte auslesen und auf Seriellen Monitor schreiben
-for(int i=0;i<50;i=i+1){
-// Serial.print("Poti Zeigefinger\n");
-Serial.println(readMux(0)); // Grundgelenk
-Serial.println(readMux(1)); // Mittelgelenk
-Serial.println(readMux(2)); // Endgelenk
-// Serial.println(readMux()); // Andere Drehachse
+// Startzeit speichern
+startTime = micros();
 
-// Serial.print("Poti Mittelfinger\n");
-Serial.println(readMux(4)); // Grundgelenk
-Serial.println(readMux(5)); // Mittelgelenk
-Serial.println(readMux(6)); // Endgelenk
-//Serial.println(readMux()); // Andere Drehachse
-//Serial.print("\n\n");
+// Sensorwerte auslesen und auf Seriellen Monitor schreiben
+for(int i=0;i<2;i=i+1){
 
-// Serial.print("Poti Ringfinger\n");
-Serial.println(readMux(8)); // Grundgelenk
-Serial.println(readMux(9)); // Mittelgelenk
-Serial.println(readMux(10)); // Endgelenk
-//Serial.println(readMux()); // Andere Drehachse
-//Serial.print("\n\n");
+  // Potentiometerwert auslesen
+  for (int j=0;j<16;j=j+1){
+  potentiometerValue = readMux(j);
+  Serial.print(potentiometerValue);
+  }
 
-// Serial.print("Poti kleiner Finger\n");
-Serial.println(readMux(12)); // Grundgelenk
-Serial.println(readMux(13)); // Mittelgelenk
-Serial.println(readMux(14)); // Endgelenk
-//Serial.println(readMux()); // Andere Drehachse
-//Serial.print("\n\n");
+// Potentiometerwerte auslesen
 
-// Kraftwert Zeigefinger auslesen, aktueller Widerstand: 10kOhm
-// Serial.print("Kraftsensor Zeigefinger \n");
-// Serial.println(analogRead(39));
-// Serial.print("\n");
+  // // Serial.print("Poti Zeigefinger\n");
+  // Serial.println(readMux(0)); // Grundgelenk
+  // Serial.println(readMux(1)); // Mittelgelenk
+  // Serial.println(readMux(2)); // Endgelenk
+  // Serial.println(readMux(3)); // Andere Drehachse
+
+  // // // Serial.print("Poti Mittelfinger\n");
+  // Serial.println(readMux(4)); // Grundgelenk
+  // Serial.println(readMux(5)); // Mittelgelenk
+  // Serial.println(readMux(6)); // Endgelenk
+  // Serial.println(readMux(7)); // Andere Drehachse
+
+  // // // Serial.print("Poti Ringfinger\n");
+  // Serial.println(readMux(8)); // Grundgelenk
+  // Serial.println(readMux(9)); // Mittelgelenk
+  // Serial.println(readMux(10)); // Endgelenk
+  // Serial.println(readMux(11)); // Andere Drehachse
+
+  // // // Serial.print("Poti kleiner Finger\n");
+  // Serial.println(readMux(12)); // Grundgelenk
+  // Serial.println(readMux(13)); // Mittelgelenk
+  // Serial.println(readMux(14)); // Endgelenk
+  // Serial.println(readMux(15)); // Andere Drehachse
+  // Serial.print("\n\n");
 
 
+// Kraftwerte auslesen, aktueller Widerstand: 10k Ohm
 
-delay(100); // zum plotten 100 nehmen
+  // Serial.print("Kraftsensor Zeigefinger \n");
+  Serial.print(analogRead(force1));
+
+  // Serial.print("Kraftsensor Mittelfinger \n");
+  Serial.print(analogRead(force2));
+
+  // Serial.print("Kraftsensor Ringfinger \n");
+  Serial.print(analogRead(force3));
+
+  // Serial.print("Kraftsensor kleiner Finger \n");
+  Serial.print(analogRead(force4));
+
+
+//delay(2000); 
 }
+
+// Endzeit speichern
+  endTime = micros();
+
+  // Verstrichene Zeit berechnen
+  elapsedTime = endTime - startTime;
+
+  // Ergebnis ausgeben
+  //Serial.print(potentiometerValue);
+  Serial.print("Zeit: ");
+  Serial.print(elapsedTime);
+  Serial.println(" us \n");
+
 while(1);
 }
