@@ -6,18 +6,16 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+// #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+// #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
-
-
-class MyCallbacks : public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-        std::string value = pCharacteristic->getValue(); // process incoming data from client if needed
-    }
-};
+// BLEServer* pServer = NULL;
+// BLECharacteristic* pCharacteristic = NULL;
+// class MyCallbacks : public BLECharacteristicCallbacks {
+//     void onWrite(BLECharacteristic *pCharacteristic) {
+//         std::string value = pCharacteristic->getValue(); // process incoming data from client if needed
+//     }
+// };
 
 // Variablen
 // Input-Pin Multiplexer
@@ -39,12 +37,21 @@ int forceValue[4] = {0, 0, 0, 0};
 int sensorValue = 0;
 unsigned long startTime = 0;
 int count = 0;
-float array[26];
+float array[20];
+// Kraftregelung
+int dir_2 = 0;
+int dir_3 = 0;
+int dir_4 = 0;
+int dir_5 = 1;
+int F_upper = 2500;
+int F_lower = -500;
+int angle_2 = 0;
+int angle_3 = 0;
+int angle_4 = 0;
 
 // Servos Ansteuerung Multiplexer
 Adafruit_PWMServoDriver myServos = Adafruit_PWMServoDriver(0x40);
 
-Adafruit_MPU6050 mpu;
 
 // Skalierung des gemessenen Signals auf die Spannung (für Potentiometer)
 float floatMap(float x, float in_min, float in_max, float out_min, float out_max)
@@ -112,18 +119,6 @@ void setup() {
     myServos.setPWMFreq(50);
     delay(10);
 
-  // initialize IMU
-    // if (!mpu.begin()) {
-    // Serial.println("Sensor init failed");
-    // while (1)
-    //     yield();
-    //     }
-    // Serial.println("MPU6050 Found!");
-
-    // mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-    // mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-    // mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
-
 
 // initialize BLE
     // BLEDevice::init("ESP32 Sensor Export");
@@ -133,147 +128,114 @@ void setup() {
     //     CHARACTERISTIC_UUID,
     //     BLECharacteristic::PROPERTY_READ |
     //         BLECharacteristic::PROPERTY_NOTIFY);
-
     // pCharacteristic->setCallbacks(new MyCallbacks());
-
     // // set initial sensor value
     // pCharacteristic->setValue(String(sensorValue).c_str());
-
     // pService->start();
-
     // // start advertising
     // pServer->getAdvertising()->addServiceUUID(pService->getUUID());
     // pServer->getAdvertising()->start();
 }
 
 void loop() {
-//   startTime=millis();
-//   // Für 10 Sekunden Sensorwerte auslesen (und auf Seriellen Monitor schreiben)
-//   while (millis()-startTime < 10000){
 
-  // //   Potentiometerwerte auslesen
-  // // readMux(0) - readMux(3) = Zeigefinger
-  // // readMux(0): MCP
-  // // readMux(1): PIP
-  // // readMux(2): DIP
-  // // readMux(3): Andere Drehachse, ...
+  // Potentiometerwerte einlesen
+    // readMux(0) - readMux(3) = Zeigefinger
+    // readMux(0): MCP
+    // readMux(1): PIP
+    // readMux(2): DIP
+    // readMux(3): Andere Drehachse, ...
    
-//     for (int j=0;j<16;j++){
-//     potentiometerValue = readMux(j);
-//     // Serial.print(potentiometerValue);
-//     array[j]=potentiometerValue;
-//     }
+    for (int j=0;j<16;j++){
+    potentiometerValue = readMux(j);
+    array[j]=potentiometerValue;
+    }
 
-
-//   // // Kraftwerte auslesen, aktueller Widerstand: 10k Ohm
-//     forceValue[0] = analogRead(force2); // Kraftsensor Zeigefinger
-//     forceValue[1] = analogRead(force3); // Kraftsensor Mittelfinger
-//     forceValue[2] = analogRead(force4); // Kraftsensor Ringfinger
-//     forceValue[3] = analogRead(force5); // Kraftsensor kleiner Finger
-//     for (int k = 0; k<4; k++){
-//     array[16 + k]=forceValue[k];
-//     //   Serial.print(forceValue[k]);
-//     }
-
-Serial.print("\nforce2: ");
-Serial.println(analogRead(force2));
-Serial.print("force3: ");
-Serial.println(analogRead(force3));
-Serial.print("force5: ");
-Serial.println(analogRead(force5));
-
-
-    myServos.setPWM(1, 0, 390);
-    myServos.setPWM(2, 0, 390);
-    myServos.setPWM(3, 0, 390);
-    myServos.setPWM(4, 0, 390);
-
-    delay(3000);
+    // Kraftwerte einlesen, Widerstand Spannungsteiler: 10k Ohm
+    array[16] = analogRead(force2); // Kraftsensor Zeigefinger
+    array[17] = analogRead(force3); // Kraftsensor Mittelfinger
+    array[18] = analogRead(force4); // Kraftsensor Ringfinger
+    array[19] = analogRead(force5); // Kraftsensor kleiner Finger
     
-    myServos.setPWM(1, 0, 375);
-    myServos.setPWM(2, 0, 375);
-    myServos.setPWM(3, 0, 375);
-    myServos.setPWM(4, 0, 375);
+    // Offset der Winkel abziehen
+    angle_2 = array[0] - 73;
+    angle_3 = array[4] - 73;
+    angle_4 = array[8] - 73;
 
-    delay(3000);
 
-    myServos.setPWM(1, 0, 360);
-    myServos.setPWM(2, 0, 360);
-    myServos.setPWM(3, 0, 360);
-    myServos.setPWM(4, 0, 360);
-
-    delay(3000);
-    
-    myServos.setPWM(1, 0, 375);
-    myServos.setPWM(2, 0, 375);
-    myServos.setPWM(3, 0, 375);
-    myServos.setPWM(4, 0, 375);
-
-    delay(3000);
+    // Ansteuerung Servos über Multiplexer, bei 50 Hz sollte der Servo bei 375 (1500 / 4) still stehen (+-11,25)
+    // Regelung der Servos: Ein swicht case für jeden Finger, jeweils obere und untere Grenze definiert Richtung des Servos
+    // Geschwindigkeit: Je größer Differenz zum Grenzwert, desto höher Geschwindkeit, bei Annäherung Verringerung
    
-    // int test=analogRead(force2);
-    // Serial.println(test);
-    // if (test<800){
-    //     myServos.setPWM(2, 0, 387);
-    // }
-    // else{
-    //     myServos.setPWM(2, 0, 363);
-    // }
-    // delay(500);
 
-  //   Ansteuerung Servos über Multiplexer, bei 50 Hz sollte der Servo bei 375 (1500 / 4) still stehen (+-11,25)
-    // myServos.setPWM(0, 0, 400);
-    // myServos.setPWM(2, 0, 400);
-    // myServos.setPWM(4, 0, 400);
-    // myServos.setPWM(8, 0, 400);
-    // delay(1000);
+    switch (dir_2){
+        case 0:
+        if (angle_2 < 50){
+        myServos.setPWM(0, 0, 390 - angle_2/10);
+        delay(20);
+        }
+        else{
+            dir_2 = 1;
+        }
+        break;
+        case 1:
+        if (angle_2>10){
+        myServos.setPWM(0, 0, 365 - angle_2/10);
+        delay(20);
+        }
+        else{
+            dir_2=0;
+        }
+        break;
+    }
+        
+    switch (dir_3){
+        case 0:
+        if (angle_3 < 60){
+        myServos.setPWM(1, 0, 390 - angle_3/10);
+        delay(20);
+        }
+        else{
+            dir_3 = 1;
+        }
+        break;
+        case 1:
+        if (angle_3>20){
+        myServos.setPWM(1, 0, 365 - angle_3/10);
+        delay(20);
+        }
+        else{
+            dir_3=0;
+        }
+        break;
+    }
 
-    // myServos.setPWM(0, 0, 375);
-    // myServos.setPWM(2, 0, 375);
-    // myServos.setPWM(4, 0, 375);
-    // myServos.setPWM(8, 0, 375);
-    // delay(2000);
-
-    // myServos.setPWM(0, 0, 350);
-    // myServos.setPWM(2, 0, 350);
-    // myServos.setPWM(4, 0, 350);
-    // myServos.setPWM(8, 0, 350);
-    // delay(1000);
-
-    // myServos.setPWM(0, 0, 375);
-    // myServos.setPWM(2, 0, 375);
-    // myServos.setPWM(4, 0, 375);
-    // myServos.setPWM(8, 0, 375);
-    // delay(2000);
+    switch (dir_4){
+        case 0:
+        if (angle_4 < 60){
+        myServos.setPWM(2, 0, 390 - angle_4/10);
+        delay(20);
+        }
+        else{
+            dir_4 = 1;
+        }
+        break;
+        case 1:
+        if (angle_4>20){
+        myServos.setPWM(2, 0, 365 - angle_4/10);
+        delay(20);
+        }
+        else{
+            dir_4 = 0;
+        }
+        break;
+    }
     
 
-// read IMU
-    /* Get new sensor events with the readings */
-    // sensors_event_t a, g, temp;
-    // mpu.getEvent(&a, &g, &temp);
-
-    // save sensor values to array
-    // Serial.println(a.acceleration.y);
-    // array[20]= a.acceleration.x;
-    // array[21]= a.acceleration.y;
-    // array[22]= a.acceleration.z;
-    // array[23]= g.gyro.x;
-    // array[24]= g.gyro.y;
-    // array[25]= g.gyro.z;
-
-
-    // print array values on serial monitor
-    // for (int u = 0; u<26; u++){
-    //         Serial.print("Element ");
-    //         Serial.print(u);
-    //         Serial.print(": ");
-    //         Serial.println(array[u]);
-    //     }
     
-    
-    // // Bluetooth Server
+    // // Bluetooth Übertragung Server
     // String arrayData = "";
-    // for (int z = 0; z < 26; z++) {
+    // for (int z = 0; z < 20; z++) {
     //   arrayData += String(array[z]) + ",";
     // }
 
@@ -282,16 +244,5 @@ Serial.println(analogRead(force5));
 
     // // notify connected clients
     // pCharacteristic->notify();
-
-    // Serial.println(readMux(2));
-
-    // delay(3000);
-
-//     count++;
-//   }
-//   Serial.print("Durchläufe: \n");
-//   Serial.println(count);
-
-//   while(1);
   
 }
