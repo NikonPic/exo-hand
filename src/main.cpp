@@ -84,8 +84,8 @@ int readMux(int channel)
 }
 
 
-// motor control
-    // servos controlled by multilexer, at 50 Hz and with the pwm value 375 (1500 / 4) the servo should not move (+-11,25)
+// servo control
+    // servos controlled by multiplexer, at 50 Hz and with the pwm value 375 (1500 / 4) the servo should not move (+-11,25)
     // control: upper and lower force limit defines direction of the servos (dir = 0: pull)
     // velocity: Higher delta of force limit and actual force = higher velocity, slowing down when measured force is getting closer to force limit
 void control (int pin, int dir, int force)
