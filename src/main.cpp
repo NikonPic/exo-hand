@@ -3,8 +3,6 @@
 #include <Adafruit_PWMServoDriver.h>
 #include <BluetoothSerial.h>
 #include <BLEDevice.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
 
 
 // #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -18,44 +16,39 @@
 //     }
 // };
 
-// Variablen
-// Input-Pin Multiplexer
+
+// variable declaration
+
+// input-pin multiplexer
 #define muxSIG 36
-// control-Pins Multiplexer
+// control-pins multiplexer
 #define muxS0 12
 #define muxS1 14
 #define muxS2 27
 #define muxS3 26
-// inout pins Kraftsensoren
+// input pins force sensors
 #define force2 35
 #define force3 32
 #define force4 33
 #define force5 25
-
-// Variablendeklaration
-int potentiometerValue = 0;
-int forceValue[4] = {0, 0, 0, 0};
-int sensorValue = 0;
-unsigned long startTime = 0;
-int count = 0;
+// sensors
+int sensor_value = 0;
 float sensor_array[20];
-// Kraftregelung
+float sensor_array_cal[20];
+// servo control
 int dir_array[4] = {0, 0, 0, 0};
 int F_upper = 2500;
 int F_lower = -500;
-int angle_2 = 0;
-int angle_3 = 0;
-int angle_4 = 0;
-// Zeit
-int Startzeit = 0;
-int Dauer = 10000;
+// timer
+int start_time = 0;
+int duration = 10000;
 
 
-// Servos Ansteuerung Multiplexer
+// servo control multiplexer
 Adafruit_PWMServoDriver myServos = Adafruit_PWMServoDriver(0x40);
 
 
-// logische Schaltung des Multiplexers (Potentiometer)
+// logical gate multiplexer (to read rotatory sensors)
 int readMux(int channel)
 {
     int controlPin[] = {muxS0, muxS1, muxS2, muxS3};
@@ -79,22 +72,22 @@ int readMux(int channel)
         {1, 1, 1, 1}  // channel 15
     };
 
-    // Schleife über 4 Signale
+    // loop for 4 signals
     for (int i = 0; i < 4; i++)
     {
         digitalWrite(controlPin[i], muxChannel[channel][i]);
     }
 
-    int val = analogRead(muxSIG);              // Wert am Signal-Pin lesen
-    float valGrad = map(val, 0, 4095, 0, 360); // Wert in Winkel [°] umrechnen (Annahme: Winkelbereich Poti 360°)
-    return valGrad;                            // Wert zurück geben
+    int val = analogRead(muxSIG);              // read signal-pin
+    float val_deg = map(val, 0, 4095, 0, 360); // convert value in degree [°] 
+    return val_deg;                            // return value
 }
 
 
-// Motor Regelung
-    // Ansteuerung Servos über Multiplexer, bei 50 Hz sollte der Servo bei 375 (1500 / 4) still stehen (+-11,25)
-    // Regelung der Servos: swich case für jeden Finger, jeweils obere und untere Kraftgrenze definiert Richtung des Servos (dir)
-    // Geschwindigkeit: Je größer die Differenz zum Grenzwert, desto höher die Geschwindkeit, bei Annäherung Verringerung
+// motor control
+    // servos controlled by multilexer, at 50 Hz and with the pwm value 375 (1500 / 4) the servo should not move (+-11,25)
+    // control: upper and lower force limit defines direction of the servos (dir = 0: pull)
+    // velocity: Higher delta of force limit and actual force = higher velocity, slowing down when measured force is getting closer to force limit
 void control (int pin, int dir, int force)
 {
     switch (dir){
@@ -122,15 +115,15 @@ void control (int pin, int dir, int force)
 
 void setup() {
 
-// Pinbelegung
-    // Input-Pin Multiplexer
+// pins
+    // input-Pin multiplexer
     pinMode(muxSIG, INPUT);
-    // control-Pins Multiplexer
+    // control-Pins multiplexer
     pinMode(muxS0, OUTPUT);
     pinMode(muxS1, OUTPUT);
     pinMode(muxS2, OUTPUT);
     pinMode(muxS3, OUTPUT);
-    // input pins Kraftsensoren
+    // input pins force sensors
     pinMode(force2, INPUT);
     pinMode(force3, INPUT);
     pinMode(force4, INPUT);
@@ -156,61 +149,72 @@ void setup() {
     //         BLECharacteristic::PROPERTY_NOTIFY);
     // pCharacteristic->setCallbacks(new MyCallbacks());
     // // set initial sensor value
-    // pCharacteristic->setValue(String(sensorValue).c_str());
+    // pCharacteristic->setValue(String(sensor_value).c_str());
     // pService->start();
     // // start advertising
     // pServer->getAdvertising()->addServiceUUID(pService->getUUID());
     // pServer->getAdvertising()->start();
 
 
-Startzeit=millis();
+start_time=millis();
 }
 
 void loop() {
 
-if (millis() - Startzeit <= Dauer){
+if (millis() - start_time <= duration){
 
-    // Potentiometerwerte einlesen
+    // read rotatory sensors
         
-        // readMux(0) - readMux(3) = Zeigefinger
+        // readMux(0) - readMux(3) = pointing finger
         // readMux(0): MCP
         // readMux(1): PIP
         // readMux(2): DIP
-        // readMux(3): Andere Drehachse, ...
+        // readMux(3): MCP vertikal rotation axis, ...
     
         for (int j=0;j<16;j++){
-        potentiometerValue = readMux(j);
-        sensor_array[j]=potentiometerValue;
-        Serial.print(sensor_array[j]);
-        Serial.print(",");
+        sensor_array[j] = readMux(j);
         }
 
+
+    // read force sensors, resistance voltage divider: 10k Ohm
+
+        sensor_array[16] = analogRead(force2); // force sensor pointing finger
+        sensor_array[17] = analogRead(force3); // force sensor middle finger
+        sensor_array[18] = analogRead(force4); // force sensor ring finger
+        sensor_array[19] = analogRead(force5); // force sensor little finger
+
+
+    // array with calibrated sensor values
+
+        sensor_array_cal[0] = sensor_array[0] - 73;
+        sensor_array_cal[1] = sensor_array[1] - 70;
+        sensor_array_cal[2] = sensor_array[2] - 70;
+        sensor_array_cal[3] = sensor_array[3] - 175;
+        sensor_array_cal[4] = sensor_array[4] - 77;
+        sensor_array_cal[5] = sensor_array[5] - 70;
+        sensor_array_cal[6] = sensor_array[6] - 70;
+        sensor_array_cal[7] = sensor_array[7] - 158;
+        sensor_array_cal[8] = sensor_array[8] - 72;
+        sensor_array_cal[9] = sensor_array[9] - 65;
+        sensor_array_cal[10] = sensor_array[10] - 70;
+        sensor_array_cal[11] = sensor_array[11] - 122;
+        sensor_array_cal[12] = sensor_array[12] - 94;
+        sensor_array_cal[13] = sensor_array[13] - 64;
+        sensor_array_cal[14] = sensor_array[14] - 70;
+        sensor_array_cal[15] = sensor_array[15] - 187;
+
     
-        // Offset der Winkel abziehen
-        angle_2 = sensor_array[0] - 73;
-        angle_3 = sensor_array[4] - 73;
-        angle_4 = sensor_array[8] - 73;
+    // print sensor values
 
-
-    // Kraftwerte einlesen, Widerstand Spannungsteiler: 10k Ohm
-
-        sensor_array[16] = analogRead(force2); // Kraftsensor Zeigefinger
-        sensor_array[17] = analogRead(force3); // Kraftsensor Mittelfinger
-        sensor_array[18] = analogRead(force4); // Kraftsensor Ringfinger
-        sensor_array[19] = analogRead(force5); // Kraftsensor kleiner Finger
-    
-        Serial.print(sensor_array[16]);
-        Serial.print(",");
-        Serial.print(sensor_array[17]);
-        Serial.print(",");
-        Serial.print(sensor_array[18]);
-        Serial.print(",");
-        Serial.print(sensor_array[19]);
+        for (int k=0;k<20;k++){
+            Serial.print(sensor_array_cal[k]);
+            Serial.print(",");
+        }
         Serial.print("\n");
     
-    // Ansteuerung Servos: dir_array[0] = Zeigefinger, dir_array[1] = Mittelfinger, ...
+    // control servos: dir_array[0] = pointing finger, dir_array[1] = middle finger, ...
 
-        control(0, dir_array[0], sensor_array[16]);
+        control(0, dir_array[0], sensor_array_cal[16]);
         // control(1, dir_array[1], sensor_array[17]);
         // control(2, dir_array[2], sensor_array[18]);
         // control(4, dir_array[3], sensor_array[19]);
@@ -218,7 +222,7 @@ if (millis() - Startzeit <= Dauer){
 
     
 
-    // // Bluetooth Übertragung Server
+    // // bluetooth transmission server
 
         // String arrayData = "";
         // for (int z = 0; z < 20; z++) {
