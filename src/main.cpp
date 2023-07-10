@@ -35,10 +35,11 @@
 int sensor_value = 0;
 float sensor_array[20];
 float sensor_array_cal[20];
+int temp = 0;
 // servo control
 int dir_array[4] = {0, 0, 0, 0};
 int F_upper = 2500;
-int F_lower = -500;
+int F_lower = 700;
 // timer
 int start_time = 0;
 int duration = 10000;
@@ -80,6 +81,7 @@ int readMux(int channel)
 
     int val = analogRead(muxSIG);              // read signal-pin
     float val_deg = map(val, 0, 4095, 0, 360); // convert value in degree [°] 
+    // float val_deg = (val/4095) *360;
     return val_deg;                            // return value
 }
 
@@ -92,21 +94,22 @@ void control (int pin, int dir, int force)
 {
     switch (dir){
         case 0:
-            if (force < 1800){
-            myServos.setPWM(pin, 0, 395 - (force-1000)/100);
-            delay(20);
+            if (force < F_upper){
+            myServos.setPWM(pin, 0, 395 - force/500);
+            // myServos.setPWM(pin, 0, 390);
+            //delay(20);
             }
             else{
-                dir_array[pin] = 1;
+                dir_array[pin-1] = 1;
             }
         break;
         case 1:
-            if (force>1500){
-            myServos.setPWM(pin, 0, 365 - (force-1000)/100);
-            delay(20);
+            if (force> F_lower){
+            myServos.setPWM(pin, 0, 360 - force/500);
+            //delay(20);
             }
             else{
-                dir_array[pin]=0;
+                dir_array[pin-1]=0;
             }
         break;
         }
@@ -138,6 +141,8 @@ void setup() {
     myServos.setPWMFreq(50);
     delay(10);
 
+// set temporary sensor array, used to filter spikes
+    temp = 0;
 
 // initialize BLE
     // BLEDevice::init("ESP32 Sensor Export");
@@ -161,6 +166,7 @@ start_time=millis();
 
 void loop() {
 
+
 if (millis() - start_time <= duration){
 
     // read rotatory sensors
@@ -172,9 +178,14 @@ if (millis() - start_time <= duration){
         // readMux(3): MCP vertikal rotation axis, ...
     
         for (int j=0;j<16;j++){
-        sensor_array[j] = readMux(j);
+            if ((abs(readMux(j)- sensor_array[j]) < 40) || (temp == 0)){
+                sensor_array[j] = readMux(j);
+            }
         }
 
+    // filter for spikes
+        temp = 1;
+ 
 
     // read force sensors, resistance voltage divider: 10k Ohm
 
@@ -202,7 +213,11 @@ if (millis() - start_time <= duration){
         sensor_array_cal[13] = sensor_array[13] - 64;
         sensor_array_cal[14] = sensor_array[14] - 70;
         sensor_array_cal[15] = sensor_array[15] - 187;
-
+        sensor_array_cal[16] = sensor_array[16]*12.52 - 18596;
+        sensor_array_cal[16] = pow(sensor_array[16],2)*0.006955 - sensor_array[16]*15.41 + 8458;
+        sensor_array_cal[17] = pow(sensor_array[17],2)*0.003439 - sensor_array[17]*3.774 + 1018;
+        sensor_array_cal[18] = pow(sensor_array[18],2)*0.004206 - sensor_array[18]*3.163 - 0.0001006;
+        sensor_array_cal[19] = pow(sensor_array[19],2)*0.006194 - sensor_array[19]*8.338 + 1771;
     
     // print sensor values
 
@@ -214,14 +229,33 @@ if (millis() - start_time <= duration){
     
     // control servos: dir_array[0] = pointing finger, dir_array[1] = middle finger, ...
 
-        control(0, dir_array[0], sensor_array_cal[16]);
-        // control(1, dir_array[1], sensor_array[17]);
-        // control(2, dir_array[2], sensor_array[18]);
-        // control(4, dir_array[3], sensor_array[19]);
+        // Serial.println(sensor_array_cal[16]);
+        // Serial.println(sensor_array_cal[17]);
+        // Serial.println(sensor_array_cal[18]);
+        // Serial.println(sensor_array_cal[19]);
+        //delay(2000);
+        
+        // myServos.setPWM(1, 0, 390);
+        // myServos.setPWM(2, 0, 390);
+        // myServos.setPWM(3, 0, 390);
+        // myServos.setPWM(4, 0, 390);
+
+        // delay(3000);
+
+        // myServos.setPWM(1, 0, 375);
+        // myServos.setPWM(2, 0, 375);
+        // myServos.setPWM(3, 0, 375);
+        // myServos.setPWM(4, 0, 375);
+
+        // delay(3000);
+        
+        control(1, dir_array[0], sensor_array_cal[16]);
+        control(2, dir_array[1], sensor_array_cal[17]);
+        // control(3, dir_array[2], sensor_array_cal[18]);
+       // control(4, dir_array[3], sensor_array_cal[19]);
         
 
     
-
     // // bluetooth transmission server
 
         // String arrayData = "";
@@ -236,7 +270,12 @@ if (millis() - start_time <= duration){
         // pCharacteristic->notify();
 }
 else{
-    while(1);
-    }
+     
+        myServos.setPWM(1, 0, 375);
+        myServos.setPWM(2, 0, 375);
+        myServos.setPWM(3, 0, 375);
+        myServos.setPWM(4, 0, 375);
+        while(1);
+     }
   
 }
