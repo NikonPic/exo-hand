@@ -50,7 +50,7 @@
 
 
 // // logical gate multiplexer (to read rotatory sensors)
-//     int readMux(int channel)
+//     int read_mux(int channel)
 //     {
 //         int controlPin[] = {muxS0, muxS1, muxS2, muxS3};
 
@@ -229,50 +229,50 @@
 
 //                 // read rotatory sensors
                     
-//                     // readMux(0) - readMux(3) = index finger
-//                     // readMux(0): MCP
-//                     // readMux(1): PIP
-//                     // readMux(2): DIP
-//                     // readMux(3): MCP vertikal rotation axis, ...
+//                     // read_mux(0) - read_mux(3) = index finger
+//                     // read_mux(0): MCP
+//                     // read_mux(1): PIP
+//                     // read_mux(2): DIP
+//                     // read_mux(3): MCP vertikal rotation axis, ...
                 
 //                     for (int j=0;j<16;j++){
-//                         if ((abs(readMux(j)- sensor_array[j]) < 40) || firstRun){
-//                             sensor_array[j] = readMux(j);
+//                         if ((abs(read_mux(j)- sensor_array[j]) < 40) || firstRun){
+//                             sensor_array[j] = read_mux(j);
 //                         }
 //                     }
 //                     // filter for spikes
 //                     firstRun = 0;
             
 
-//                
-                    // // read force sensors, resistance voltage divider: 10k Ohm
+               
+//                     // read force sensors, resistance voltage divider: 10k Ohm
 
-                    //     forceValue[0] = analogRead(force2); // index finger
-                    //     forceValue[1] = analogRead(force3); // middle finger
-                    //     forceValue[2] = analogRead(force4); // ring finger
-                    //     forceValue[3] = analogRead(force5); // little finger
+//                         forceValue[0] = analogRead(force2); // index finger
+//                         forceValue[1] = analogRead(force3); // middle finger
+//                         forceValue[2] = analogRead(force4); // ring finger
+//                         forceValue[3] = analogRead(force5); // little finger
 
-                    // // determine whether the force value is constant to change servo direction
-                    //     for (int n=0;n<4;n++){
-                    //         if (abs(forceValue[n]-sensor_array[n+16])<50){
-                    //             count[n]++;
-                    //         }
-                    //         else{
-                    //             count[n] = 0;
-                    //         }
+//                     // determine whether the force value is constant to change servo direction
+//                         for (int n=0;n<4;n++){
+//                             if (abs(forceValue[n]-sensor_array[n+16])<50){
+//                                 count[n]++;
+//                             }
+//                             else{
+//                                 count[n] = 0;
+//                             }
                         
-                    //         if (count[n]>2){
-                    //             // dir_array[n] = dir_array[n] ^ 1; // change the direction of the correspondig servo if the force did not change significantly during 3 following time steps
-                    //             dir_array[n] = 0; // change direction to pull 
-                    //             count[n] = 0;
-                    //         }
-                    //     }
+//                             if (count[n]>2){
+//                                 // dir_array[n] = dir_array[n] ^ 1; // change the direction of the correspondig servo if the force did not change significantly during 3 following time steps
+//                                 dir_array[n] = 0; // change direction to pull 
+//                                 count[n] = 0;
+//                             }
+//                         }
 
-                    // // write force sensor values into sensor array
-                    //     sensor_array[16] = forceValue[0]; // index finger
-                    //     sensor_array[17] = forceValue[1]; // middle finger
-                    //     sensor_array[18] = forceValue[2]; // ring finger
-                    //     sensor_array[19] = forceValue[3]; // little finger
+//                     // write force sensor values into sensor array
+//                         sensor_array[16] = forceValue[0]; // index finger
+//                         sensor_array[17] = forceValue[1]; // middle finger
+//                         sensor_array[18] = forceValue[2]; // ring finger
+//                         sensor_array[19] = forceValue[3]; // little finger
 
 
 

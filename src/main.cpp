@@ -1,119 +1,78 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-#include <BluetoothSerial.h>
-#include <BLEDevice.h>
+#include "read_mux.h"
 
 
-// #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-// #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+// variables and constants declaration
 
-// BLEServer* pServer = NULL;
-// BLECharacteristic* pCharacteristic = NULL;
-// class MyCallbacks : public BLECharacteristicCallbacks {
-//     void onWrite(BLECharacteristic *pCharacteristic) {
-//         std::string value = pCharacteristic->getValue(); // process incoming data from client if needed
-//     }
-// };
+    // input-pin multiplexer
+    #define muxSIG 36
+ // control-pins multiplexer
+    #define muxS0 12
+    #define muxS1 14
+    #define muxS2 27
+    #define muxS3 26
+    // input pins force sensors
+    #define force2 35
+    #define force3 32
+    #define force4 33
+    #define force5 25
+    // pins servos
+    #define servo2 1
+    #define servo3 2
+    #define servo4 3
+    #define servo5 4
 
+    // sensors
+    int sensor_value = 0;
+    float sensor_array[20];
+    float sensor_array_cal[20];
+    int firstRun = 1;
+    int forceValue[4];
+    int count[4] = {0};
 
-// variable declaration
+    // servo control
+    Adafruit_PWMServoDriver myServos = Adafruit_PWMServoDriver(0x40);
 
-// input-pin multiplexer
-#define muxSIG 36
-// control-pins multiplexer
-#define muxS0 12
-#define muxS1 14
-#define muxS2 27
-#define muxS3 26
-// input pins force sensors
-#define force2 35
-#define force3 32
-#define force4 33
-#define force5 25
-// sensors
-int sensor_value = 0;
-float sensor_array[20];
-float sensor_array_cal[20];
-int temp = 0;
-// servo control
-int dir_array[4] = {0, 0, 0, 0};
-int F_upper = 2500;
-int F_lower = 700;
-// timer
-int start_time = 0;
-int duration = 10000;
+    int dir_array[4] = {0};
+    const int F_upper = 2000;
+    const int F_lower = 500;
+    #define stopServo 375
 
-
-// servo control multiplexer
-Adafruit_PWMServoDriver myServos = Adafruit_PWMServoDriver(0x40);
+    // timer
+    const int duration = 20000;
+    int start_time = 0;
+    
 
 
-// logical gate multiplexer (to read rotatory sensors)
-int readMux(int channel)
-{
-    int controlPin[] = {muxS0, muxS1, muxS2, muxS3};
-
-    int muxChannel[16][4] = {
-        {0, 0, 0, 0}, // channel 0
-        {1, 0, 0, 0}, // channel 1
-        {0, 1, 0, 0}, // channel 2
-        {1, 1, 0, 0}, // channel 3
-        {0, 0, 1, 0}, // channel 4
-        {1, 0, 1, 0}, // channel 5
-        {0, 1, 1, 0}, // channel 6
-        {1, 1, 1, 0}, // channel 7
-        {0, 0, 0, 1}, // channel 8
-        {1, 0, 0, 1}, // channel 9
-        {0, 1, 0, 1}, // channel 10
-        {1, 1, 0, 1}, // channel 11
-        {0, 0, 1, 1}, // channel 12
-        {1, 0, 1, 1}, // channel 13
-        {0, 1, 1, 1}, // channel 14
-        {1, 1, 1, 1}  // channel 15
-    };
-
-    // loop for 4 signals
-    for (int i = 0; i < 4; i++)
+    // servo control function
+        // servos controlled by multiplexer, at 50 Hz and with the pwm value 375 (1500 / 4) the servo should not move (+-11,25)
+        // control: upper and lower force limit defines direction of the servos (dir = 0: pull)
+        // velocity: Higher delta of force limit and actual force = higher velocity, slowing down when measured force is getting closer to force limit
+    void control (int pin, int dir, int force)
     {
-        digitalWrite(controlPin[i], muxChannel[channel][i]);
+        switch (dir){
+            case 0:
+                if (force < F_upper){
+                myServos.setPWM(pin, 0, 387 + (F_upper-force)/100);
+                // myServos.setPWM(pin, 0, 390);
+                }
+                else{
+                    dir_array[pin-1] = 1;
+                }
+            break;
+            case 1:
+                if (force> F_lower){
+                myServos.setPWM(pin, 0, 363 - (force-F_lower)/100);
+                // myServos.setPWM(pin, 0, 360);
+                }
+                else{
+                    dir_array[pin-1]=0;
+                }
+            break;
+            }
     }
-
-    int val = analogRead(muxSIG);              // read signal-pin
-    float val_deg = map(val, 0, 4095, 0, 360); // convert value in degree [°] 
-    // float val_deg = (val/4095) *360;
-    return val_deg;                            // return value
-}
-
-
-// servo control
-    // servos controlled by multiplexer, at 50 Hz and with the pwm value 375 (1500 / 4) the servo should not move (+-11,25)
-    // control: upper and lower force limit defines direction of the servos (dir = 0: pull)
-    // velocity: Higher delta of force limit and actual force = higher velocity, slowing down when measured force is getting closer to force limit
-void control (int pin, int dir, int force)
-{
-    switch (dir){
-        case 0:
-            if (force < F_upper){
-            myServos.setPWM(pin, 0, 395 - force/500);
-            // myServos.setPWM(pin, 0, 390);
-            //delay(20);
-            }
-            else{
-                dir_array[pin-1] = 1;
-            }
-        break;
-        case 1:
-            if (force> F_lower){
-            myServos.setPWM(pin, 0, 360 - force/500);
-            //delay(20);
-            }
-            else{
-                dir_array[pin-1]=0;
-            }
-        break;
-        }
-}
 
 
 void setup() {
@@ -133,7 +92,6 @@ void setup() {
     pinMode(force5, INPUT);
 
     Serial.begin(9600);
-    
 
 // initialize servos
     Wire.begin();
@@ -141,62 +99,64 @@ void setup() {
     myServos.setPWMFreq(50);
     delay(10);
 
-// set temporary sensor array, used to filter spikes
-    temp = 0;
+// set temporary variable, used to filter spikes and ignore the first run
+    int firstRun = 1;
 
-// initialize BLE
-    // BLEDevice::init("ESP32 Sensor Export");
-    // pServer = BLEDevice::createServer();
-    // BLEService *pService = pServer->createService(SERVICE_UUID);
-    // pCharacteristic = pService->createCharacteristic(
-    //     CHARACTERISTIC_UUID,
-    //     BLECharacteristic::PROPERTY_READ |
-    //         BLECharacteristic::PROPERTY_NOTIFY);
-    // pCharacteristic->setCallbacks(new MyCallbacks());
-    // // set initial sensor value
-    // pCharacteristic->setValue(String(sensor_value).c_str());
-    // pService->start();
-    // // start advertising
-    // pServer->getAdvertising()->addServiceUUID(pService->getUUID());
-    // pServer->getAdvertising()->start();
-
-
-start_time=millis();
+// variable for timer
+    int start_time = millis();
 }
 
 void loop() {
 
-
+// timer (control servos for duration, than stop servos)
 if (millis() - start_time <= duration){
 
     // read rotatory sensors
-        
-        // readMux(0) - readMux(3) = pointing finger
-        // readMux(0): MCP
-        // readMux(1): PIP
-        // readMux(2): DIP
-        // readMux(3): MCP vertikal rotation axis, ...
-    
+        // read_mux(0) to readMux(3): index finger (4-7: middle finger, ...)
+        // read_mux(0): MCP
+        // read_mux(1): PIP
+        // read_mux(2): DIP
+        // read_mux(3): MCP vertikal rotation axis
         for (int j=0;j<16;j++){
-            if ((abs(readMux(j)- sensor_array[j]) < 40) || (temp == 0)){
-                sensor_array[j] = readMux(j);
+            if ((abs(read_mux(j)- sensor_array[j]) < 40) || firstRun){
+                sensor_array[j] = read_mux(j);
+            }
+        }
+        // filter for spikes
+        firstRun = 0;
+ 
+
+
+    // read force sensors, resistance voltage divider: 10k Ohm
+        forceValue[0] = analogRead(force2); // index finger
+        forceValue[1] = analogRead(force3); // middle finger
+        forceValue[2] = analogRead(force4); // ring finger
+        forceValue[3] = analogRead(force5); // little finger
+
+    // determine whether the force value is constant to change servo direction
+        for (int n=0;n<4;n++){
+            if (abs(forceValue[n]-sensor_array[n+16])<50){
+                count[n]++;
+            }
+            else{
+                count[n] = 0;
+            }
+            if (count[n]>2){
+                // dir_array[n] = dir_array[n] ^ 1; // change the direction of the correspondig servo if the force did not change significantly during 3 following time steps
+                dir_array[n] = 0; // change direction to pull 
+                count[n] = 0;
             }
         }
 
-    // filter for spikes
-        temp = 1;
- 
+    // write force sensor values into sensor array
+        sensor_array[16] = forceValue[0]; // index finger
+        sensor_array[17] = forceValue[1]; // middle finger
+        sensor_array[18] = forceValue[2]; // ring finger
+        sensor_array[19] = forceValue[3]; // little finger
 
-    // read force sensors, resistance voltage divider: 10k Ohm
-
-        sensor_array[16] = analogRead(force2); // force sensor pointing finger
-        sensor_array[17] = analogRead(force3); // force sensor middle finger
-        sensor_array[18] = analogRead(force4); // force sensor ring finger
-        sensor_array[19] = analogRead(force5); // force sensor little finger
 
 
     // array with calibrated sensor values
-
         sensor_array_cal[0] = sensor_array[0] - 73;
         sensor_array_cal[1] = sensor_array[1] - 70;
         sensor_array_cal[2] = sensor_array[2] - 70;
@@ -216,66 +176,36 @@ if (millis() - start_time <= duration){
         sensor_array_cal[16] = sensor_array[16]*12.52 - 18596;
         sensor_array_cal[16] = pow(sensor_array[16],2)*0.006955 - sensor_array[16]*15.41 + 8458;
         sensor_array_cal[17] = pow(sensor_array[17],2)*0.003439 - sensor_array[17]*3.774 + 1018;
-        sensor_array_cal[18] = pow(sensor_array[18],2)*0.004206 - sensor_array[18]*3.163 - 0.0001006;
+        sensor_array_cal[18] = sensor_array[18]*15.15 - 14825;
+        // sensor_array_cal[18] = -pow(sensor_array[18],2)*0.0101 + sensor_array[18]*44.83 - 35580;
         sensor_array_cal[19] = pow(sensor_array[19],2)*0.006194 - sensor_array[19]*8.338 + 1771;
-    
-    // print sensor values
 
+    // print calibrated sensor values
         for (int k=0;k<20;k++){
             Serial.print(sensor_array_cal[k]);
             Serial.print(",");
         }
         Serial.print("\n");
     
-    // control servos: dir_array[0] = pointing finger, dir_array[1] = middle finger, ...
 
-        // Serial.println(sensor_array_cal[16]);
-        // Serial.println(sensor_array_cal[17]);
-        // Serial.println(sensor_array_cal[18]);
-        // Serial.println(sensor_array_cal[19]);
-        //delay(2000);
+
+    // control servos: 
+        // servo2 = pin for servo that controls index finger, ...
+        // dir_array[0] = index finger, dir_array[1] = middle finger, ..., defines direction for each servo
+        // sensor_array_cal[16] = measured force for index finger (used to calculate servo speed and to decide for change of direction)
         
-        // myServos.setPWM(1, 0, 390);
-        // myServos.setPWM(2, 0, 390);
-        // myServos.setPWM(3, 0, 390);
-        // myServos.setPWM(4, 0, 390);
-
-        // delay(3000);
-
-        // myServos.setPWM(1, 0, 375);
-        // myServos.setPWM(2, 0, 375);
-        // myServos.setPWM(3, 0, 375);
-        // myServos.setPWM(4, 0, 375);
-
-        // delay(3000);
-        
-        control(1, dir_array[0], sensor_array_cal[16]);
-        control(2, dir_array[1], sensor_array_cal[17]);
-        // control(3, dir_array[2], sensor_array_cal[18]);
-       // control(4, dir_array[3], sensor_array_cal[19]);
-        
-
-    
-    // // bluetooth transmission server
-
-        // String arrayData = "";
-        // for (int z = 0; z < 20; z++) {
-        //   arrayData += String(sensor_array[z]) + ",";
-        // }
-
-        // // update characteristic value
-        // pCharacteristic->setValue(arrayData.c_str());
-
-        // // notify connected clients
-        // pCharacteristic->notify();
-}
+        control(servo2, dir_array[0], sensor_array_cal[16]);
+        control(servo3, dir_array[1], sensor_array_cal[17]);
+        // control(servo4, dir_array[2], sensor_array_cal[18]);
+        // control(servo5, dir_array[3], sensor_array_cal[19]);
+    }
 else{
-     
-        myServos.setPWM(1, 0, 375);
-        myServos.setPWM(2, 0, 375);
-        myServos.setPWM(3, 0, 375);
-        myServos.setPWM(4, 0, 375);
+
+    // stop all servos
+        myServos.setPWM(servo2, 0, stopServo);
+        myServos.setPWM(servo3, 0, stopServo);
+        myServos.setPWM(servo4, 0, stopServo);
+        myServos.setPWM(servo5, 0, stopServo);
         while(1);
      }
-  
 }
