@@ -247,13 +247,13 @@ void loop() {
 
         // determine whether the force value is constant to change servo direction
             for (int n=0;n<4;n++){
-                if (abs(forceValue[n]-sensor_array[n+16])<15){
+                if (abs(forceValue[n]-sensor_array[n+16])<30){
                     count[n]++;
                 }
                 else{
                     count[n] = 0;
                 }
-                if (count[n]>30){
+                if (count[n]>20){
                     // dir_array[n] = dir_array[n] ^ 1; // change the direction of the correspondig servo if the force did not change significantly during 15 following time steps
                     dir_array[n] = 0; // change direction to pull 
                     count[n] = 0;
@@ -378,13 +378,13 @@ void loop() {
 
                 // determine whether the force value is constant to change servo direction
                     for (int n=0;n<4;n++){
-                        if (abs(forceValue[n]-sensor_array[n+16])<15){
+                        if (abs(forceValue[n]-sensor_array[n+16])<30){
                             count[n]++;
                         }
                         else{
                             count[n] = 0;
                         }
-                        if (count[n]>30){
+                        if (count[n]>20){
                             // dir_array[n] = dir_array[n] ^ 1; // change the direction of the correspondig servo if the force did not change significantly during 15 following time steps
                             dir_array[n] = 0; // change direction to pull 
                             count[n] = 0;
