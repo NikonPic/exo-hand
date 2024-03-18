@@ -14,7 +14,7 @@
 
 // choose modus
     int modus= 1; // normal modus
-    // int modus= 2; // BLE modus
+    //int modus= 2; // BLE modus
 
 
 // variables declaration
@@ -48,12 +48,12 @@
     // servo control
         Adafruit_PWMServoDriver myServos = Adafruit_PWMServoDriver(0x40);
         int dir_array[4] = {0};
-        const int F_upper = 3000;
+        const int F_upper = 2500;
         const int F_lower = 700;
         #define stopServo 375
 
     // timer
-        const int duration = 10000;
+        const int duration = 30000;
         int start_time = 0;
         
     // BLE
@@ -139,7 +139,7 @@
         std::string value = pCharacteristic->getValue();
 
         if (value.length() > 0) {
-          if (value[0] == '1') {
+          if (value == "Start") {
             turnOn=1;
             
           } else {
@@ -215,6 +215,8 @@ void setup() {
     // variable for timer
         int start_time = millis();
 }
+
+
 
 void loop() {
 
@@ -335,6 +337,7 @@ void loop() {
             myServos.setPWM(servo3, 0, stopServo);
             myServos.setPWM(servo4, 0, stopServo);
             myServos.setPWM(servo5, 0, stopServo);
+            //Serial.print("max time reached");
             while(1);
         }
     }
@@ -425,8 +428,8 @@ void loop() {
                     // second calibration
                     sensor_array_cal[16] = pow(sensor_array[16],2)*0.004938 - sensor_array[16]*6.967 + 2648;
                     sensor_array_cal[17] = pow(sensor_array[17],2)* 0.003234 - sensor_array[17]*2.163 - 56.16;
-                    sensor_array_cal[18] = pow(sensor_array[18],2)*0.0006528 + sensor_array[18]*8.069 - 2487 ;
-                    sensor_array_cal[19] = pow(sensor_array[19],2)*0.004539 - sensor_array[19]*2.147 - 531.1 ;
+                    sensor_array_cal[18] = pow(sensor_array[18],2)*0.0006528 + sensor_array[18]*8.069 - 2487;
+                    sensor_array_cal[19] = pow(sensor_array[19],2)*0.004539 - sensor_array[19]*2.147 - 531.1;
 
                 // print calibrated sensor values
                     for (int k=0;k<20;k++){
@@ -448,7 +451,7 @@ void loop() {
                         arrayData += String(sensor_array_cal[z]) + ",";
                     }
 
-                    update characteristic value
+                    //update characteristic value
                     pSensorCharacteristic->setValue(arrayData.c_str());
                     pSensorCharacteristic->notify();
 
