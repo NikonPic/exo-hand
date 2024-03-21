@@ -60,6 +60,12 @@ int start_time = 0;
 int turnOn = 0;
 int cur_run = 0;
 
+float meanForceI = 0;
+float meanForceM = 0;
+float meanForceR = 0;
+float meanForceS = 0;
+
+
 // servo control function
 // servos controlled by multiplexer, at 50 Hz and with the pwm value 375 (1500 / 4) the servo should not move (+-11,25)
 // control: upper and lower force limit defines direction of the servos (dir = 0: pull)
@@ -95,6 +101,37 @@ void control(int pin, int dir, int force)
         break;
     }
 }
+
+
+void control_simple(int pin, int dir, float force, float meanForce)
+{
+    switch (dir)
+    {
+    case 0:
+        if (force < meanForce * 1.1)
+        {
+            myServos.setPWM(pin, 0, 390);
+        }
+        else
+        {
+            dir_array[pin - 1] = 1;
+            myServos.setPWM(pin, 0, 360);
+        }
+        break;
+    case 1:
+        if (force > meanForce * 0.9)
+        {
+            myServos.setPWM(pin, 0, 360);
+        }
+        else
+        {
+            dir_array[pin - 1] = 0;
+            myServos.setPWM(pin, 0, 390);
+        }
+        break;
+    }
+}
+
 
 void control_ringfinger(int pin, int dir, int force)
 {
@@ -238,7 +275,6 @@ void setup()
 
     // set temporary variable, used to filter spikes and ignore the first run
     int firstRun = 1;
-    
 
     // variable for timer
     int start_time = millis();
@@ -339,25 +375,47 @@ void loop()
             sensor_array_cal[18] = pow(sensor_array[18], 2) * 0.0006528 + sensor_array[18] * 8.069 - 2487;
             sensor_array_cal[19] = pow(sensor_array[19], 2) * 0.004539 - sensor_array[19] * 2.147 - 531.1;
 
+
+            sensor_array_cal[16] = sensor_array[16];
+            sensor_array_cal[17] = sensor_array[17];
+            sensor_array_cal[18] = sensor_array[18];
+            sensor_array_cal[19] = sensor_array[19];
+
+            meanForceI = 0.99 * meanForceI + 0.01 * sensor_array_cal[16];
+            meanForceM = 0.99 * meanForceM + 0.01 * sensor_array_cal[17];
+            meanForceR = 0.99 * meanForceR + 0.01 * sensor_array_cal[18];
+            meanForceS = 0.99 * meanForceS + 0.01 * sensor_array_cal[19];
+
+
             sensor_array_raw[20] = getElapsedTimeInCentiSeconds();
-    
+
             cur_run++;
-            if (deviceConnected && turnOn && cur_run > 6)
+            if (deviceConnected && turnOn && cur_run > 0)
             {
                 cur_run = 0;
                 // Prepare a byte array large enough to hold all int values in bytes
                 uint8_t sensorDataBytes[sizeof(sensor_array) / sizeof(sensor_array[0]) * sizeof(int)];
 
                 // Convert int array to byte array
-                int16sToBytes(sensor_array_raw, sensorDataBytes, sizeof(sensor_array) / sizeof(sensor_array[0]));
+                int16sToBytes(sensor_array_raw, sensorDataBytes, sizeof(sensor_array_raw) / sizeof(sensor_array_raw[0]));
 
                 // Send the byte array over BLE
                 pSensorCharacteristic->setValue(sensorDataBytes, sizeof(sensorDataBytes));
                 pSensorCharacteristic->notify(); // Notify connected client
 
                 // Print the size of the data being sent
-                Serial.print("Sending BLE data of length: ");
-                Serial.println(sizeof(sensorDataBytes));
+                if (false) {
+                    Serial.print("Sending BLE data of length: ");
+                    Serial.println(sizeof(sensorDataBytes));
+                    Serial.println("sensor_array_raw contents:");
+                    for (size_t i = 0; i < sizeof(sensor_array_raw) / sizeof(sensor_array_raw[0]); ++i)
+                    {
+                        Serial.print(sensor_array_raw[i]);
+                        Serial.print(", ");
+                    }
+                    Serial.println("");
+                }
+
             }
 
             // Sensor value
@@ -371,10 +429,22 @@ void loop()
             pSensorCharacteristic->setValue(arrayData.c_str());
             pSensorCharacteristic->notify();
 
-            control(servo2, dir_array[0], sensor_array_cal[16]);
-            control(servo3, dir_array[1], sensor_array_cal[17]);
-            control(servo4, dir_array[2], sensor_array_cal[18]);
-            control(servo5, dir_array[3], sensor_array_cal[19]);
+            //control(servo2, dir_array[0], sensor_array_cal[16]);
+            //control(servo3, dir_array[1], sensor_array_cal[17]);
+            //control(servo4, dir_array[2], sensor_array_cal[18]);
+            //control(servo5, dir_array[3], sensor_array_cal[19]);
+
+            control_simple(servo2, dir_array[0], sensor_array_cal[16], meanForceI);
+            control_simple(servo3, dir_array[1], sensor_array_cal[17], meanForceI);
+            control_simple(servo4, dir_array[2], sensor_array_cal[18], meanForceI);
+            control_simple(servo5, dir_array[3], sensor_array_cal[19], meanForceI);
+            Serial.print(dir_array[0]);
+            Serial.print(", ");
+            Serial.print(dir_array[1]);
+            Serial.print(", ");
+            Serial.print(dir_array[2]);
+            Serial.print(", ");
+            Serial.println(dir_array[3]);
         }
         else
         {
@@ -384,7 +454,6 @@ void loop()
             myServos.setPWM(servo4, 0, stopServo);
             myServos.setPWM(servo5, 0, stopServo);
         }
-
-        delay(25);
+        delay(10);
     }
 }
