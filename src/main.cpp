@@ -48,9 +48,10 @@ int count[4] = {0};
 // servo control
 Adafruit_PWMServoDriver myServos = Adafruit_PWMServoDriver(0x40);
 int dir_array[4] = {0};
-const int F_upper = 2500;
-const int F_lower = 700;
-#define stopServo 375
+
+// force and servo definitions
+const int F_upper = 4;
+const int F_lower = 1.9;
 
 // timer
 const int duration = 30000;
@@ -64,43 +65,125 @@ float meanForceI = 0;
 float meanForceM = 0;
 float meanForceR = 0;
 float meanForceS = 0;
+float meanForce = 0;
 
+int packagesSent = 0;
 
 // servo control function
 // servos controlled by multiplexer, at 50 Hz and with the pwm value 375 (1500 / 4) the servo should not move (+-11,25)
 // control: upper and lower force limit defines direction of the servos (dir = 0: pull)
 // velocity: Higher delta of force limit and actual force = higher velocity, slowing down when measured force is getting closer to force limit
 
+/*
+void stopAllServos()
+{
+    myServos.setPWM(servo2, 0, stopServo);
+    myServos.setPWM(servo3, 0, stopServo);
+    myServos.setPWM(servo4, 0, stopServo);
+    myServos.setPWM(servo5, 0, stopServo);
+}
+*/
+
+void stopAllServos()
+{
+    // Setting the PWM to 0 will stop sending PWM signals, effectively deactivating the servos
+    myServos.setPWM(servo2, 0, 0);
+    myServos.setPWM(servo3, 0, 0);
+    myServos.setPWM(servo4, 0, 0);
+    myServos.setPWM(servo5, 0, 0);
+}
+
+/*
 void control(int pin, int dir, int force)
 {
+    float highServo = 390;
+    float lowServo = 360;
+    float stopServo = 375;
+
+    float minServo = 15;
+    float maxServo = 30;
+
+
+    float diffLow = force - F_lower;
+    float diffHigh = F_upper - force;
+    float genForceDiff = F_upper - F_lower;
+    
+
     switch (dir)
     {
     case 0:
         if (force < F_upper)
         {
-            // myServos.setPWM(pin, 0, 387 + (F_upper-force)/100);
-            myServos.setPWM(pin, 0, 390);
+            myServos.setPWM(pin, 0, highServo);
         }
         else
         {
             dir_array[pin - 1] = 1;
-            myServos.setPWM(pin, 0, 360);
+            myServos.setPWM(pin, 0, lowServo);
         }
         break;
     case 1:
         if (force > F_lower)
         {
-            // myServos.setPWM(pin, 0, 363 - (force-F_lower)/100);
-            myServos.setPWM(pin, 0, 360);
+            myServos.setPWM(pin, 0, lowServo);
         }
         else
         {
             dir_array[pin - 1] = 0;
-            myServos.setPWM(pin, 0, 390);
+            myServos.setPWM(pin, 0, highServo);
         }
         break;
     }
 }
+*/
+
+
+void control(int pin, int dir, int force)
+{
+    float stopServo = 375; // Neutral position for the servo
+    float minServo = 10;   // Minimum PWM value to add/subtract from stopServo
+    float maxServo = 20;   // Maximum PWM value to add/subtract from stopServo
+
+    float pwmValue; // PWM value to be calculated based on force
+
+    switch (dir)
+    {
+    case 0: // Pull direction
+        maxServo += 10;
+        if (force < F_upper)
+        {
+            // Scale the PWM value based on the difference from F_upper
+            float diffHigh = F_upper - force;
+            pwmValue = stopServo + map(diffHigh, 0, F_upper - F_lower, minServo, maxServo);
+            pwmValue = constrain(pwmValue, stopServo, stopServo + maxServo); // Ensure PWM is within bounds
+            myServos.setPWM(pin, 0, pwmValue);
+        }
+        else
+        {
+            dir_array[pin - 1] = 1; // Switch direction to push
+            myServos.setPWM(pin, 0, stopServo - minServo);
+        }
+        break;
+
+    case 1: // Push direction
+        if (force > F_lower)
+        {
+            // Scale the PWM value based on the difference from F_lower
+            float diffLow = force - F_lower;
+            pwmValue = stopServo - map(diffLow, 0, F_upper - F_lower, minServo, maxServo);
+            pwmValue = constrain(pwmValue, stopServo - maxServo, stopServo); // Ensure PWM is within bounds
+            myServos.setPWM(pin, 0, pwmValue);
+        }
+        else
+        {
+            dir_array[pin - 1] = 0; // Switch direction to pull
+            myServos.setPWM(pin, 0, stopServo + minServo);
+        }
+        break;
+    }
+}
+
+
 
 
 void control_simple(int pin, int dir, float force, float meanForce)
@@ -131,7 +214,6 @@ void control_simple(int pin, int dir, float force, float meanForce)
         break;
     }
 }
-
 
 void control_ringfinger(int pin, int dir, int force)
 {
@@ -182,6 +264,8 @@ class MyServerCallbacks : public BLEServerCallbacks
     {
         deviceConnected = false;
         Serial.print("disconencted\n");
+        pServer->getAdvertising()->start(); // Restart advertising after disconnection
+        Serial.println("Advertising restarted");
     }
 };
 
@@ -197,6 +281,13 @@ class ControlCharacteristicCallbacks : public BLECharacteristicCallbacks
             if (value == "Start")
             {
                 turnOn = 1;
+                Serial.println("Starting!");
+                start_time = millis();
+            }
+            if (value == "Game")
+            {
+                turnOn = 2;
+                stopAllServos();
                 Serial.println("Starting!");
                 start_time = millis();
             }
@@ -290,6 +381,8 @@ int16_t getElapsedTimeInCentiSeconds()
     return elapsed_time_in_centi_seconds;
 }
 
+
+
 void loop()
 {
 
@@ -297,7 +390,7 @@ void loop()
     if (deviceConnected)
 
     {
-        if (turnOn) // if signal "1" is transmitted via BLE
+        if (turnOn > 0) // if signal "1 or 2" is transmitted via BLE
         {
             // read rotatory sensors
             // read_mux(0) to readMux(3): index finger (4-7: middle finger, ...)
@@ -370,22 +463,26 @@ void loop()
             sensor_array_cal[14] = sensor_array[14] - 70;
             sensor_array_cal[15] = sensor_array[15] - 187;
 
+            /*
             sensor_array_cal[16] = pow(sensor_array[16], 2) * 0.004938 - sensor_array[16] * 6.967 + 2648;
             sensor_array_cal[17] = pow(sensor_array[17], 2) * 0.003234 - sensor_array[17] * 2.163 - 56.16;
             sensor_array_cal[18] = pow(sensor_array[18], 2) * 0.0006528 + sensor_array[18] * 8.069 - 2487;
             sensor_array_cal[19] = pow(sensor_array[19], 2) * 0.004539 - sensor_array[19] * 2.147 - 531.1;
+            */
 
+            // calibration
+            sensor_array_cal[16] = 0.005 * sensor_array[16] - 3;
+            sensor_array_cal[17] = 0.005 * sensor_array[17] - 1.3;
+            sensor_array_cal[18] = 0.010 * sensor_array[18] - 2.55;
+            sensor_array_cal[19] = 0.007 * sensor_array[19] - 2;
 
-            sensor_array_cal[16] = sensor_array[16];
-            sensor_array_cal[17] = sensor_array[17];
-            sensor_array_cal[18] = sensor_array[18];
-            sensor_array_cal[19] = sensor_array[19];
+            double tfac = 0.9;
+            meanForceI = tfac * meanForceI + (1-tfac) * sensor_array_cal[16];
+            meanForceM = tfac * meanForceM + (1-tfac) * sensor_array_cal[17];
+            meanForceR = tfac * meanForceR + (1-tfac) * sensor_array_cal[18];
+            meanForceS = tfac * meanForceS + (1-tfac) * sensor_array_cal[19];
 
-            meanForceI = 0.99 * meanForceI + 0.01 * sensor_array_cal[16];
-            meanForceM = 0.99 * meanForceM + 0.01 * sensor_array_cal[17];
-            meanForceR = 0.99 * meanForceR + 0.01 * sensor_array_cal[18];
-            meanForceS = 0.99 * meanForceS + 0.01 * sensor_array_cal[19];
-
+            meanForce = tfac * meanForce + (1-tfac) * (meanForceI + meanForceM + meanForceR + meanForceS) / 4.0;
 
             sensor_array_raw[20] = getElapsedTimeInCentiSeconds();
 
@@ -403,8 +500,11 @@ void loop()
                 pSensorCharacteristic->setValue(sensorDataBytes, sizeof(sensorDataBytes));
                 pSensorCharacteristic->notify(); // Notify connected client
 
+                packagesSent++;
+
                 // Print the size of the data being sent
-                if (false) {
+                if (false)
+                {
                     Serial.print("Sending BLE data of length: ");
                     Serial.println(sizeof(sensorDataBytes));
                     Serial.println("sensor_array_raw contents:");
@@ -415,7 +515,6 @@ void loop()
                     }
                     Serial.println("");
                 }
-
             }
 
             // Sensor value
@@ -429,15 +528,18 @@ void loop()
             pSensorCharacteristic->setValue(arrayData.c_str());
             pSensorCharacteristic->notify();
 
-            //control(servo2, dir_array[0], sensor_array_cal[16]);
-            //control(servo3, dir_array[1], sensor_array_cal[17]);
-            //control(servo4, dir_array[2], sensor_array_cal[18]);
-            //control(servo5, dir_array[3], sensor_array_cal[19]);
-
-            control_simple(servo2, dir_array[0], sensor_array_cal[16], meanForceI);
-            control_simple(servo3, dir_array[1], sensor_array_cal[17], meanForceI);
-            control_simple(servo4, dir_array[2], sensor_array_cal[18], meanForceI);
-            control_simple(servo5, dir_array[3], sensor_array_cal[19], meanForceI);
+            // only loop in here if the value is 1-> "Measure + Motor" in the app
+            if (turnOn == 1)
+            {
+                control(servo2, dir_array[0], meanForceI);
+                control(servo3, dir_array[1], meanForceM);
+                control(servo4, dir_array[2], meanForceR);
+                control(servo5, dir_array[3], meanForceS);
+            }
+            else {
+                stopAllServos();
+            }
+            
             Serial.print(dir_array[0]);
             Serial.print(", ");
             Serial.print(dir_array[1]);
@@ -445,14 +547,13 @@ void loop()
             Serial.print(dir_array[2]);
             Serial.print(", ");
             Serial.println(dir_array[3]);
+            float hz = (float)packagesSent / ((float)sensor_array_raw[20] / 100);
+            Serial.println(dir_array[3]);
         }
         else
         {
             // stop all servos
-            myServos.setPWM(servo2, 0, stopServo);
-            myServos.setPWM(servo3, 0, stopServo);
-            myServos.setPWM(servo4, 0, stopServo);
-            myServos.setPWM(servo5, 0, stopServo);
+            stopAllServos();
         }
         delay(10);
     }
